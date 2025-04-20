@@ -9,16 +9,15 @@
     tools:context=".SecondFragment">
 
     <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/relativeLayout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:padding="16dp"
-        tools:layout_editor_absoluteY="1dp">
+        android:padding="16dp">
 
         <androidx.camera.view.PreviewView
             android:id="@+id/viewFinder"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_marginEnd="16dp"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
             android:visibility="visible"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
@@ -29,27 +28,15 @@
 
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/camera_capture_button"
-            android:layout_width="56dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:clickable="true"
             android:src="@android:drawable/ic_menu_camera"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintHorizontal_bias="0.96"
+            app:layout_constraintEnd_toEndOf="@+id/viewFinder"
+            app:layout_constraintHorizontal_bias="0.94"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintVertical_bias="0.487" />
-
-        <androidx.constraintlayout.widget.Guideline
-            android:id="@+id/guideline2"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:layout_marginEnd="1263dp"
-            android:orientation="horizontal"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintGuide_begin="382dp"
-            app:layout_constraintStart_toStartOf="parent" />
+            app:layout_constraintTop_toTopOf="parent" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 </androidx.core.widget.NestedScrollView>

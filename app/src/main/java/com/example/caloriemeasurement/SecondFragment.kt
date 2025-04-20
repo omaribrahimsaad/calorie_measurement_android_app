@@ -35,7 +35,19 @@ import java.nio.ByteBuffer
 import android.content.ContentResolver
 import android.view.GestureDetector
 import android.view.MotionEvent
+import androidx.fragment.app.activityViewModels
 import java.io.OutputStream
+import com.example.caloriemeasurement.SharedRadioButtonViewModel
+import com.example.caloriemeasurement.DetectionMode
+import org.tensorflow.lite.Interpreter
+import org.tensorflow.lite.support.image.TensorImage
+import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
+import java.io.FileInputStream
+import java.nio.ByteOrder
+import java.nio.channels.FileChannel
+import androidx.core.graphics.scale
+import org.tensorflow.lite.DataType
+import android.graphics.*
 
 /**
  * A simple [Fragment] subclass as the second destination in the navigation.
@@ -50,7 +62,9 @@ class SecondFragment : Fragment() {
     private var imageCapture: ImageCapture? = null
     private var camera: Camera? = null
     private lateinit var outputDirectory: File
-
+    private val sharedViewModel: SharedRadioButtonViewModel by activityViewModels()
+    private var calorieInterpreter: Interpreter? = null
+    private lateinit var classLabels: List<String>
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentSecondBinding.inflate(inflater, container, false)
@@ -74,7 +88,44 @@ class SecondFragment : Fragment() {
 
         setupSwipeGesture(view)
 
+        // Observe the LiveData from the Shared ViewModel
+        sharedViewModel.selectedMode.observe(viewLifecycleOwner) { detection_mode ->
+            // load respective model
+            loadModel(detection_mode)
+        }
+
     }
+
+    private fun loadModel(detection_mode:DetectionMode)
+    {
+        when (detection_mode)
+        {
+            DetectionMode.CALORIE_CAPTURE ->
+            {
+                val assetManager = requireContext().assets
+                val fileDescriptor = assetManager.openFd("fruit_and_veg_model.tflite")
+                val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
+                val fileChannel = inputStream.channel
+                val startOffset = fileDescriptor.startOffset
+                val declaredLength = fileDescriptor.declaredLength
+                val mappedByteBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength)
+
+                classLabels = loadLabels()
+                calorieInterpreter = Interpreter(mappedByteBuffer)
+            }
+            DetectionMode.SIGN_LANAGUAGE ->
+            {
+
+            }
+            else->
+            {
+
+            }
+
+
+        }
+    }
+
 
     private fun setupSwipeGesture(view: View) {
         val gestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
@@ -162,13 +213,7 @@ class SecondFragment : Fragment() {
         // Create time-stamped name and MediaStore entry.
         val name = SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.US)
             .format(System.currentTimeMillis())
-        val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
-            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg") // Saving as JPEG
-            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
-                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/CameraX-RedOnly")
-            }
-        }
+
 
         // Get resolver for MediaStore
         val resolver: ContentResolver = requireContext().contentResolver
@@ -179,7 +224,10 @@ class SecondFragment : Fragment() {
                 @OptIn(ExperimentalGetImage::class)
                 override fun onCaptureSuccess(image: ImageProxy)
                 {
-                    processAndSaveImage(image,contentValues, resolver)
+                    val bitmap = imageProxyToBitmap(image)
+                    bitmap?.let{
+                        runCalorieInference(it)
+                    }
                 }
 
                 override fun onError(exception: ImageCaptureException )
@@ -188,7 +236,84 @@ class SecondFragment : Fragment() {
                 }
             })
     }
+    fun rotateBitmap(bitmap: Bitmap, degrees: Float): Bitmap {
+        val matrix = Matrix()
+        matrix.postRotate(degrees)
+        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+    }
+    fun resizeBitmapSmoothly(bitmap: Bitmap, newWidth: Int, newHeight: Int): Bitmap {
+        val resized = Bitmap.createBitmap(newWidth, newHeight, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(resized)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        paint.isDither = true
+        val srcRect = Rect(0, 0, bitmap.width, bitmap.height)
+        val dstRect = Rect(0, 0, newWidth, newHeight)
+        canvas.drawBitmap(bitmap, srcRect, dstRect, paint)
+        return resized
+    }
 
+    private fun runCalorieInference(bitmap: Bitmap) {
+        val modelInputSize = 64 // Replace with your actual model input size
+
+        val rotated = rotateBitmap(bitmap,90.0f)
+        val resized = resizeBitmapSmoothly(rotated,modelInputSize,modelInputSize)
+
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, "test")
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg") // Saving as JPEG
+            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/CameraX-RedOnly")
+            }
+        }
+
+        saveBitmapToMediaStore(resized,contentValues,requireContext().contentResolver)
+
+        val image = TensorImage(DataType.FLOAT32)
+        image.load(resized)
+
+        val inputBuffer = image.tensorBuffer
+
+        val outputTensor = calorieInterpreter?.getOutputTensor(0)
+        val outputShape = outputTensor?.shape() // [1, num_classes]
+        val outputDataType = outputTensor?.dataType()
+        val numClasses = outputShape?.get(1) ?: 0
+
+        val outputBuffer = TensorBuffer.createFixedSize(
+            intArrayOf(1, numClasses),  // change according to your model
+            outputDataType
+        )
+
+        calorieInterpreter?.run(inputBuffer.buffer, outputBuffer.buffer.rewind())
+
+        val outputArray = outputBuffer.floatArray
+
+        // You can now interpret outputArray (e.g. softmax scores or class index)
+        val maxIndex = outputArray.indices.maxByOrNull { outputArray[it] } ?: -1
+        val confidence = outputArray[maxIndex]
+
+        if(confidence>0.5)
+        {
+            val predictedClass = classLabels.getOrNull(maxIndex) ?: "Unknown"
+            Toast.makeText(requireContext(),
+                "Prediction: $predictedClass (confidence $confidence)",Toast.LENGTH_SHORT)
+                .show()
+        }
+        else
+        {
+            Toast.makeText(requireContext(),
+                "Failed to detect anything!",Toast.LENGTH_SHORT)
+                .show()
+
+        }
+    }
+
+    private fun loadLabels(): List<String> {
+        val labels = mutableListOf<String>()
+        requireContext().assets.open("labels.txt").bufferedReader().useLines { lines ->
+            lines.forEach { labels.add(it) }
+        }
+        return labels
+    }
     // --- Image Processing and Saving ---
     @OptIn(ExperimentalGetImage::class)
     private fun processAndSaveImage(
@@ -282,6 +407,39 @@ class SecondFragment : Fragment() {
             // Don't recycle modifiedBitmap here as it might still be needed briefly
         }
     }
+
+    private fun saveBitmapToMediaStore(
+        bitmap: Bitmap,
+        contentValues: ContentValues,
+        contentResolver: android.content.ContentResolver
+    ) {
+        var outputStream: OutputStream? = null
+        var imageUri: android.net.Uri? = null
+        try {
+            imageUri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+            if (imageUri == null) {
+                throw Exception("MediaStore returned null URI")
+            }
+            outputStream = contentResolver.openOutputStream(imageUri)
+            if (outputStream == null) {
+                throw Exception("Failed to get output stream for URI: $imageUri")
+            }
+
+            if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 95, outputStream)) {
+                throw Exception("Failed to save bitmap")
+            }
+            Log.d(TAG, "Modified image saved successfully: $imageUri")
+//            Toast.makeText(requireContext(), "Red image saved: $imageUri", Toast.LENGTH_LONG).show()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save modified image", e)
+//            Toast.makeText(requireContext(), "Failed to save image: ${e.message}", Toast.LENGTH_SHORT).show()
+            imageUri?.let { contentResolver.delete(it, null, null) }
+        } finally {
+            outputStream?.close()
+        }
+    }
+
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
         ContextCompat.checkSelfPermission(requireContext(), it) == PackageManager.PERMISSION_GRANTED
     }

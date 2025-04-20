@@ -1,10 +1,14 @@
 <resources>
     <string name="app_name">CalorieMeasurement</string>
     <!-- Strings used for fragments for navigation -->
-    <string name="first_fragment_label">First Fragment</string>
+    <string name="launch_page_label">Launch Page</string>
     <string name="second_fragment_label">Second Fragment</string>
     <string name="next">Next</string>
     <string name="previous">Previous</string>
 
     <string name="home_button1_name">Start</string>
+    <string name="calorie_capture_title">Calorie Capture</string>
+    <string name="sign_language_title">Sign Language Communication</string>
+    <string name="select_detection_mode">Select Detection Mode:</string>
+    <string name="settings">Settings 🔨</string>
 </resources>

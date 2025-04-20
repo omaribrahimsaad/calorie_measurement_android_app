@@ -70,4 +70,8 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.3.1")
     // CameraX View class (for the preview)
     implementation("androidx.camera:camera-view:1.3.1")
+
+    implementation ("com.google.ai.edge.litert:litert:1.2.0") // or latest
+    implementation ("com.google.ai.edge.litert:litert-metadata:1.2.0")
+    implementation ("com.google.ai.edge.litert:litert-support:1.2.0")
 }

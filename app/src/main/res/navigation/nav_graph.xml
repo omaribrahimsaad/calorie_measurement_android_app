@@ -3,13 +3,13 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/nav_graph"
-    app:startDestination="@id/FirstFragment">
+    app:startDestination="@id/LaunchPage">
 
     <fragment
-        android:id="@+id/FirstFragment"
-        android:name="com.example.caloriemeasurement.FirstFragment"
-        android:label="@string/first_fragment_label"
-        tools:layout="@layout/fragment_first">
+        android:id="@+id/LaunchPage"
+        android:name="com.example.caloriemeasurement.LaunchPage"
+        android:label="@string/launch_page_label"
+        tools:layout="@layout/launch_page">
 
         <action
             android:id="@+id/action_FirstFragment_to_SecondFragment"
@@ -24,6 +24,6 @@
 
         <action
             android:id="@+id/action_SecondFragment_to_FirstFragment"
-            app:destination="@id/FirstFragment" />
+            app:destination="@id/LaunchPage" />
     </fragment>
 </navigation>
